@@ -13,9 +13,9 @@ The database (`risk.db`) and a random `secret.key` are created automatically on 
 
 | Username | Password | Role |
 |---|---|---|
-| admin | Admin@12345 | Admin: everything + users + audit log |
-| analyst | Analyst@12345 | Analyst: create/edit/delete risks, assets, catalog |
-| viewer | Viewer@12345 | Viewer: read-only |
+| admin | Admin@123 | Admin: everything + users + audit log |
+| analyst | Analyst@123 | Analyst: create/edit/delete risks, assets, catalog |
+| viewer | Viewer@123 | Viewer: read-only |
 
 Change these passwords after first login (top bar -> Change password).
 
