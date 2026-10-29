@@ -1,0 +1,16 @@
+{% macro badge(s) %}<span class="b l{{ lvl(s) }}">{{ t('lv_' ~ lvl(s)) }} ({{ s }})</span>{% endmacro %}
+{% macro opts(items, cur) %}{% for v, l in items %}<option value="{{ v }}" {{ 'selected' if v|string == cur|string }}>{{ l }}</option>{% endfor %}{% endmacro %}
+{% macro status(s) %}<span class="chip s-{{ s }}">{{ t('st_' ~ s) }}</span>{% endmacro %}
+{% macro ico(n) %}<svg viewBox="0 0 24 24" aria-hidden="true">{% if n == 'dashboard' %}<rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.6"/>
+{% elif n == 'risks' %}<path d="M12 3l10 18H2L12 3z"/><path d="M12 10v5M12 18v.4"/>
+{% elif n == 'assets' %}<rect x="3" y="4" width="18" height="6" rx="1.6"/><rect x="3" y="14" width="18" height="6" rx="1.6"/><path d="M7 7h.01M7 17h.01"/>
+{% elif n == 'catalog' %}<path d="M4 6h16M4 12h16M4 18h10"/>
+{% elif n == 'report' %}<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>
+{% elif n == 'users' %}<circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-3.5 3-6 7-6s7 2.5 7 6"/><path d="M16 5a3.5 3.5 0 010 7M22 20c0-2.8-1.8-4.8-4.5-5.6"/>
+{% elif n == 'audit' or n == 'clock' %}<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
+{% elif n == 'alert' %}<circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.4"/>
+{% elif n == 'key' %}<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3"/>
+{% elif n == 'gauge' %}<path d="M4 18a8 8 0 1116 0"/><path d="M12 18l4-6"/>
+{% elif n == 'safe' %}<path d="M12 3l8 3v6c0 4.5-3.2 8.2-8 9-4.8-.8-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>
+{% else %}<path d="M12 3l8 3v6c0 4.5-3.2 8.2-8 9-4.8-.8-8-4.5-8-9V6l8-3z"/>{% endif %}</svg>{% endmacro %}
+{% macro stat(label, val, icon='shield', cls='') %}<div class="card st {{ cls }}"><span class="ic">{{ ico(icon) }}</span><div><small>{{ label }}</small><b>{{ val }}</b></div></div>{% endmacro %}

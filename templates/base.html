@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="{{ lang }}" dir="{{ 'rtl' if lang == 'ar' else 'ltr' }}">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ t('app') }}</title><script src="{{ url_for('static', filename='theme.js') }}"></script><link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}"><link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"></head>
+<body class="{% block bc %}{% endblock %}">
+{% block page %}{% from '_m.html' import ico %}<header>
+  <a class="brand" href="{{ url_for('dashboard') if user else url_for('login') }}"><img src="{{ url_for('static', filename='logo.png') }}" alt="{{ t('app') }}"></a>
+  {% if user %}<nav>
+    {% set ep = request.endpoint %}
+    <a href="{{ url_for('dashboard') }}" class="{{ 'on' if ep == 'dashboard' }}">{{ ico('dashboard') }}{{ t('dashboard') }}</a>
+    <a href="{{ url_for('risks') }}" class="{{ 'on' if ep and ep.startswith('risk') }}">{{ ico('risks') }}{{ t('risks') }}</a>
+    <a href="{{ url_for('assets') }}" class="{{ 'on' if ep and ep.startswith('asset') }}">{{ ico('assets') }}{{ t('assets') }}</a>
+    <a href="{{ url_for('catalog') }}" class="{{ 'on' if ep == 'catalog' }}">{{ ico('catalog') }}{{ t('catalog') }}</a>
+    <a href="{{ url_for('report') }}" class="{{ 'on' if ep == 'report' }}">{{ ico('report') }}{{ t('report') }}</a>
+    {% if can('admin') %}<a href="{{ url_for('users') }}" class="{{ 'on' if ep == 'users' }}">{{ ico('users') }}{{ t('users') }}</a><a href="{{ url_for('audit_view') }}" class="{{ 'on' if ep == 'audit_view' }}">{{ ico('audit') }}{{ t('audit') }}</a>{% endif %}
+  </nav>
+  <div class="me" title="{{ user.full_name }} — {{ t('ro_' ~ user.role) }}"><span class="av">{{ user.full_name[:1] }}</span><div>{{ user.full_name }}<small>{{ t('ro_' ~ user.role) }}</small></div></div>
+  <a class="btn ib" href="{{ url_for('password') }}" title="{{ t('change_pw') }}" aria-label="{{ t('change_pw') }}">{{ ico('key') }}</a>
+  <a class="btn" href="{{ url_for('logout') }}">{{ t('logout') }}</a>
+  {% else %}<span style="flex:1"></span>{% endif %}
+  <button type="button" class="btn tg" data-theme-toggle aria-label="Theme" title="Dark / Light"><svg class="moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z"/></svg><svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+  <a class="btn p" href="{{ url_for('lang', code='en' if lang == 'ar' else 'ar') }}">{{ t('lang_switch') }}</a>
+</header>
+<main>
+  {% for c, m in get_flashed_messages(with_categories=true) %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}
+  {% block c %}{% endblock %}
+</main>{% endblock %}
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body></html>

@@ -1,0 +1,21 @@
+{% extends 'base.html' %}{% from '_m.html' import badge, opts, status with context %}{% block c %}
+<h2>{{ t('risks') }}</h2>
+<form class="tools tb" method="get">
+  <input name="q" value="{{ f.get('q', '') }}" placeholder="{{ t('search') }}">
+  <select name="level"><option value="">{{ t('all_levels') }}</option>{{ opts([(0, t('lv_0')), (1, t('lv_1')), (2, t('lv_2')), (3, t('lv_3'))], f.get('level', '')) }}</select>
+  <select name="status"><option value="">{{ t('all_status') }}</option>{{ opts([('open', t('st_open')), ('in_progress', t('st_in_progress')), ('treated', t('st_treated')), ('closed', t('st_closed'))], f.get('status', '')) }}</select>
+  <button>{{ t('filter') }}</button>
+  <a class="btn" href="{{ url_for('risks_csv', **f) }}">{{ t('export') }}</a>
+  {% if can('analyst') %}<a class="btn p" href="{{ url_for('risk_new') }}">+ {{ t('new_risk') }}</a>{% endif %}
+</form>
+<div class="card scroll"><table>
+<tr><th>{{ t('title') }}</th><th>{{ t('asset') }}</th><th>{{ t('level') }}</th><th>{{ t('treatment') }}</th><th>{{ t('residual') }}</th><th>{{ t('status') }}</th><th></th></tr>
+{% for r in rows %}<tr>
+  <td><b>{{ bi(r.title) }}</b><div class="mut">{{ bi(r.threat_name) }} / {{ bi(r.vuln_name) }}</div></td>
+  <td>{{ bi(r.asset_name) }}</td><td>{{ badge(r.score) }}<div class="mut">{{ r.likelihood }}×{{ r.impact }}</div></td>
+  <td>{{ t('tr_' ~ r.treatment) }}<div class="mut">{{ bi(r.action) }}</div></td><td>{{ badge(r.res_score) }}</td>
+  <td>{{ status(r.status) }}<div class="mut">{{ r.owner_name or '' }}<br><span class="nw">{{ r.due_date or '' }}</span></div></td>
+  <td>{% if can('analyst') %}<a class="btn" href="{{ url_for('risk_edit', rid=r.id) }}">{{ t('edit') }}</a>
+    <form class="inline" method="post" action="{{ url_for('risk_delete', rid=r.id) }}" data-confirm="{{ t('confirm_del') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="d">{{ t('delete') }}</button></form>{% endif %}</td>
+</tr>{% else %}<tr><td colspan="7" class="mut">{{ t('none') }}</td></tr>{% endfor %}
+</table></div><p class="mut">{{ t('legend') }}</p>{% endblock %}

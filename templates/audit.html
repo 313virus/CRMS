@@ -1,0 +1,5 @@
+{% extends 'base.html' %}{% block c %}
+<h2>{{ t('audit') }}</h2>
+<div class="card scroll"><table><tr><th>{{ t('time') }}</th><th>{{ t('user_col') }}</th><th>{{ t('action') }}</th><th>{{ t('entity') }}</th><th>{{ t('details') }}</th></tr>
+{% for r in rows %}<tr><td>{{ r.created_at }}</td><td>{{ r.username }}</td><td><span class="chip">{{ r.action }}</span></td><td>{{ r.entity }} #{{ r.entity_id or '' }}</td><td>{{ bi(r.details) }}</td></tr>
+{% else %}<tr><td colspan="5" class="mut">{{ t('none') }}</td></tr>{% endfor %}</table></div>{% endblock %}

@@ -1,0 +1,19 @@
+{% extends 'base.html' %}{% from '_m.html' import opts with context %}{% block c %}
+{% set n5 = [(1, 1), (2, 2), (3, 3), (4, 4), (5, 5)] %}
+<h2>{{ t('edit_risk') if r and r.id else t('new_risk') }}</h2>
+<form method="post" class="card f"><input type="hidden" name="csrf" value="{{ csrf }}">
+  <label class="w">{{ t('title') }}<input name="title" required maxlength="200" value="{{ r.title if r else '' }}"></label>
+  <label>{{ t('asset') }}<select name="asset_id">{{ opts(assets, r.asset_id if r else '') }}</select></label>
+  <label>{{ t('threat') }}<select name="threat_id">{{ opts(threats, r.threat_id if r else '') }}</select></label>
+  <label>{{ t('vuln') }}<select name="vulnerability_id">{{ opts(vulns, r.vulnerability_id if r else '') }}</select></label>
+  <label>{{ t('likelihood') }}<select name="likelihood">{{ opts(n5, r.likelihood if r else 3) }}</select></label>
+  <label>{{ t('impact') }}<select name="impact">{{ opts(n5, r.impact if r else 3) }}</select></label>
+  <label>{{ t('treatment') }}<select name="treatment">{{ opts(treats, r.treatment if r else 'mitigate') }}</select></label>
+  <label class="w">{{ t('action') }}<textarea name="action" rows="2" maxlength="1000">{{ r.action if r else '' }}</textarea></label>
+  <label>{{ t('owner') }}<select name="owner_id"><option value="">—</option>{{ opts(owners, r.owner_id if r else '') }}</select></label>
+  <label>{{ t('due') }}<input type="date" name="due_date" value="{{ r.due_date or '' if r else '' }}"></label>
+  <label>{{ t('status') }}<select name="status">{{ opts(statuses, r.status if r else 'open') }}</select></label>
+  <label>{{ t('res_likelihood') }}<select name="res_likelihood">{{ opts(n5, r.res_likelihood if r else 2) }}</select></label>
+  <label>{{ t('res_impact') }}<select name="res_impact">{{ opts(n5, r.res_impact if r else 2) }}</select></label>
+  <div class="w"><button class="p">{{ t('save') }}</button> <a class="btn" href="{{ url_for('risks') }}">{{ t('cancel') }}</a></div>
+</form>{% endblock %}

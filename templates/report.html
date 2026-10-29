@@ -1,0 +1,15 @@
+{% extends 'base.html' %}{% from '_m.html' import badge, status, stat with context %}{% block c %}
+<div class="tools"><button class="p" id="pr">{{ t('print') }}</button></div>
+<h2>{{ t('app') }} — {{ t('report') }} ({{ today }})</h2>
+<div class="grid">
+  {{ stat(t('total'), s.total, 'shield') }}
+  {{ stat(t('lv_3'), s.cnt[3], 'alert', 'k3') }}
+  {{ stat(t('lv_2'), s.cnt[2], 'risks', 'k2') }}
+  {{ stat(t('avg_cur'), s.avg, 'gauge') }}
+  {{ stat(t('avg_res'), s.avg_res, 'safe', 'k0') }}</div>
+<div class="card scroll"><h3>{{ t('assets') }}</h3><table><tr><th>{{ t('name') }}</th><th>{{ t('type') }}</th><th>{{ t('criticality') }}</th></tr>
+{% for a in assets %}<tr><td>{{ bi(a.name) }}</td><td>{{ t('ty_' ~ a.type) }}</td><td>{{ a.criticality }}</td></tr>{% endfor %}</table></div>
+<div class="card scroll"><h3>{{ t('risks') }}</h3><table><tr><th>{{ t('title') }}</th><th>{{ t('asset') }}</th><th>{{ t('level') }}</th><th>{{ t('treatment') }}</th><th>{{ t('residual') }}</th><th>{{ t('status') }}</th></tr>
+{% for r in risks %}<tr><td>{{ bi(r.title) }}</td><td>{{ bi(r.asset_name) }}</td><td>{{ badge(r.score) }}</td><td>{{ t('tr_' ~ r.treatment) }}</td><td>{{ badge(r.res_score) }}</td><td>{{ status(r.status) }}</td></tr>{% endfor %}</table></div>
+<p class="mut">{{ t('legend') }}</p>
+<script src="{{ url_for('static', filename='report.js') }}"></script>{% endblock %}

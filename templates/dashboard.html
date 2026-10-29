@@ -1,0 +1,23 @@
+{% extends 'base.html' %}{% from '_m.html' import badge, status, stat with context %}{% block c %}
+<h2>{{ t('dashboard') }}</h2>
+<div class="grid">
+  {{ stat(t('total'), s.total, 'shield') }}
+  {{ stat(t('lv_3'), s.cnt[3], 'alert', 'k3') }}
+  {{ stat(t('lv_2'), s.cnt[2], 'risks', 'k2') }}
+  {{ stat(t('avg_cur'), s.avg, 'gauge') }}
+  {{ stat(t('avg_res'), s.avg_res, 'safe', 'k0') }}
+  {{ stat(t('overdue'), s.overdue, 'clock', 'k2') }}
+</div>
+<div class="two">
+  <div class="card"><h3>{{ t('matrix') }}</h3>
+    <div class="mx"><div class="h"></div>{% for l in range(1, 6) %}<div class="h">{{ l }}</div>{% endfor %}
+    {% for i in [5, 4, 3, 2, 1] %}<div class="h">{{ i }}</div>{% for l in range(1, 6) %}<div class="l{{ lvl(l * i) }}">{{ s.mx.get((l, i), '') }}</div>{% endfor %}{% endfor %}</div>
+    <p class="mut">{{ t('matrix_note') }}</p></div>
+  <div>
+    <div class="card"><h3>{{ t('status_dist') }}</h3>
+      {% for k, n in s.st.items() %}<div class="bar"><span>{{ t('st_' ~ k) }}</span><div class="trk"><i style="width:{{ (n * 100 / (s.total or 1)) | round }}%"></i></div><b>{{ n }}</b></div>{% endfor %}</div>
+    <div class="card"><h3>{{ t('top5') }}</h3><div class="scroll"><table>
+      {% for r in s.top %}<tr><td>{{ bi(r.title) }}</td><td>{{ badge(r.score) }}</td><td>{{ status(r.status) }}</td></tr>
+      {% else %}<tr><td class="mut">{{ t('none') }}</td></tr>{% endfor %}</table></div></div>
+  </div>
+</div>{% endblock %}
