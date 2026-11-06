@@ -1,9 +1,11 @@
-"""Cybersecurity Risk Management System - Flask + SQLite."""
+"""Cybersecurity Risk Management System - Flask + PostgreSQL (Supabase), SQLite locally."""
 import csv
 import io
 import os
 import secrets
 import sqlite3
+import re
+from db_postgres import PostgresConnection, PgIntegrityError
 import time
 from PIL import Image, ImageOps, UnidentifiedImageError
 from io import BytesIO
@@ -18,6 +20,8 @@ from i18n import T
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DB = os.environ.get('RISK_DB', os.path.join(BASE, 'risk.db'))
+DATABASE_URL = os.environ.get('DATABASE_URL')
+DBIntegrityError = (sqlite3.IntegrityError, PgIntegrityError)
 AVATAR_DIR = os.path.join(BASE, 'profile_pictures')
 ASSET_ID = 1  # The sole asset in this educational case study
 ROLES = {'viewer': 1, 'analyst': 2, 'admin': 3}
@@ -37,7 +41,7 @@ def _secret():
 
 
 app = Flask(__name__)
-app.config.update(SECRET_KEY=_secret(), SESSION_COOKIE_HTTPONLY=True,
+app.config.update(SECRET_KEY=os.environ.get('FLASK_SECRET_KEY') or _secret(), SESSION_COOKIE_HTTPONLY=True,
                   SESSION_COOKIE_SAMESITE='Lax', PERMANENT_SESSION_LIFETIME=3600)
 
 
@@ -81,9 +85,12 @@ def need(role='viewer'):
 
 def get_db():
     if 'db' not in g:
-        g.db = sqlite3.connect(DB)
-        g.db.row_factory = sqlite3.Row
-        g.db.execute('PRAGMA foreign_keys=ON')
+        if DATABASE_URL:
+            g.db = PostgresConnection(DATABASE_URL)
+        else:
+            g.db = sqlite3.connect(DB)
+            g.db.row_factory = sqlite3.Row
+            g.db.execute('PRAGMA foreign_keys=ON')
     return g.db
 
 
@@ -246,23 +253,34 @@ def profile():
                     picture = canvas
                 else:
                     picture = picture.convert('RGB')
-                os.makedirs(AVATAR_DIR, exist_ok=True)
                 filename = secrets.token_hex(20) + '.jpg'
-                dest = os.path.join(AVATAR_DIR, filename)
-                picture.save(dest, 'JPEG', quality=85)
+                buffer = BytesIO()
+                picture.save(buffer, 'JPEG', quality=85)
+                image_bytes = buffer.getvalue()
+                dest = None
+                if not DATABASE_URL:
+                    os.makedirs(AVATAR_DIR, exist_ok=True)
+                    dest = os.path.join(AVATAR_DIR, filename)
+                    with open(dest, 'wb') as output:
+                        output.write(image_bytes)
         except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
             flash('Invalid image / الصورة غير صالحة', 'err')
             return redirect(url_for('profile'))
         db = get_db()
         old = g.user['avatar_filename']
         try:
-            db.execute('UPDATE users SET avatar_filename=? WHERE id=?', (filename, g.user['id']))
+            if DATABASE_URL:
+                db.execute('UPDATE users SET avatar_filename=?, avatar_data=? WHERE id=?',
+                           (filename, image_bytes, g.user['id']))
+            else:
+                db.execute('UPDATE users SET avatar_filename=? WHERE id=?', (filename, g.user['id']))
             audit('avatar_update', 'user', g.user['id'])
             db.commit()
         except Exception:
-            os.remove(dest)
+            if dest and os.path.exists(dest):
+                os.remove(dest)
             raise
-        if old:
+        if old and not DATABASE_URL:
             old_path = os.path.join(AVATAR_DIR, old)
             if os.path.isfile(old_path):
                 os.remove(old_path)
@@ -273,6 +291,12 @@ def profile():
 @app.route('/profile/avatar/<int:uid>')
 @need()
 def profile_avatar(uid):
+    if DATABASE_URL:
+        row = get_db().execute('SELECT avatar_filename, avatar_data FROM users WHERE id=?', (uid,)).fetchone()
+        if not row or not row['avatar_data']:
+            abort(404)
+        return Response(bytes(row['avatar_data']), mimetype='image/jpeg',
+                        headers={'Cache-Control': 'private, no-store'})
     row = get_db().execute('SELECT avatar_filename FROM users WHERE id=?', (uid,)).fetchone()
     if not row or not row['avatar_filename']:
         abort(404)
@@ -283,10 +307,13 @@ def profile_avatar(uid):
 def profile_remove():
     old = g.user['avatar_filename']
     db = get_db()
-    db.execute('UPDATE users SET avatar_filename=NULL WHERE id=?', (g.user['id'],))
+    if DATABASE_URL:
+        db.execute('UPDATE users SET avatar_filename=NULL, avatar_data=NULL WHERE id=?', (g.user['id'],))
+    else:
+        db.execute('UPDATE users SET avatar_filename=NULL WHERE id=?', (g.user['id'],))
     audit('avatar_remove', 'user', g.user['id'])
     db.commit()
-    if old:
+    if old and not DATABASE_URL:
         old_path = os.path.join(AVATAR_DIR, old)
         if os.path.isfile(old_path):
             os.remove(old_path)
@@ -309,7 +336,7 @@ def profile_username():
             audit('username_change', 'user', g.user['id'])
             db.commit()
             flash(t('saved'))
-        except sqlite3.IntegrityError:
+        except DBIntegrityError:
             db.rollback()
             flash('Username already exists / اسم المستخدم مستخدم مسبقاً', 'err')
     return redirect(url_for('profile'))
@@ -398,7 +425,7 @@ def risk_form(rid=None):
             db.commit()
             flash(t('saved'))
             return redirect(url_for('risks'))
-        except (KeyError, ValueError, AssertionError, sqlite3.IntegrityError):
+        except (KeyError, ValueError, AssertionError, DBIntegrityError):
             db.rollback()
             flash(t('invalid'), 'err')
             row = dict(f)
@@ -491,7 +518,7 @@ def asset_delete(aid):
         audit('delete', 'asset', aid)
         db.commit()
         flash(t('deleted'))
-    except sqlite3.IntegrityError:
+    except DBIntegrityError:
         db.rollback()
         flash(t('linked'), 'err')
     return redirect(url_for('assets'))
@@ -515,7 +542,7 @@ def catalog():
                 audit('create', kind, cur.lastrowid, name)
                 db.commit()
                 flash(t('saved'))
-            except sqlite3.IntegrityError:
+            except DBIntegrityError:
                 flash(t('exists'), 'err')
         return redirect(url_for('catalog'))
     q = lambda tb, col: db.execute(
@@ -543,7 +570,7 @@ def users():
                 flash(t('saved'))
         except (KeyError, AssertionError):
             flash(t('invalid'), 'err')
-        except sqlite3.IntegrityError:
+        except DBIntegrityError:
             flash(t('exists'), 'err')
         return redirect(url_for('users'))
     return render_template('users.html', rows=db.execute('SELECT * FROM users ORDER BY id').fetchall(),
@@ -610,6 +637,20 @@ def seed(db):
 
 
 def init_db():
+    if DATABASE_URL:
+        db = PostgresConnection(DATABASE_URL)
+        try:
+            with open(os.path.join(BASE, 'schema_postgres.sql'), encoding='utf-8') as f:
+                db.executescript(f.read())
+            if db.execute('SELECT COUNT(*) FROM users').fetchone()[0] == 0:
+                seed(db)
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+        return
     db = sqlite3.connect(DB)
     db.execute('PRAGMA foreign_keys=ON')
     with open(os.path.join(BASE, 'schema.sql'), encoding='utf-8') as f:
