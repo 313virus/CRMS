@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block c %}
+<section class="profile-page">
+  <div class="profile-heading"><div><p class="profile-eyebrow">ACCOUNT SETTINGS</p><h1>{{ 'الملف الشخصي' if lang == 'ar' else 'My Profile' }}</h1><p>{{ 'إدارة الصورة واسم المستخدم وكلمة المرور' if lang == 'ar' else 'Manage your picture, username and password' }}</p></div></div>
+  <div class="profile-panel">
+    <div class="profile-preview">
+      <button type="button" id="open-avatar-modal" class="avatar-open-button" aria-label="{{ 'عرض وتغيير الصورة الشخصية' if lang == 'ar' else 'View or change profile picture' }}" title="{{ 'اضغط لتغيير الصورة' if lang == 'ar' else 'Click to change picture' }}">
+        {% if user.avatar_filename %}<img class="profile-big-avatar" src="{{ url_for('profile_avatar', uid=user.id) }}" alt="Profile picture">
+        {% else %}<span class="profile-big-avatar profile-initial">{{ user.full_name[:1] }}</span>{% endif %}
+        <span class="avatar-camera-mark" aria-hidden="true">✎</span>
+      </button>
+      <div><strong>{{ user.full_name }}</strong><p>@{{ user.username }}</p><small>{{ t('ro_' ~ user.role) }}</small></div>
+    </div>
+    <div id="avatar-modal" class="avatar-modal" hidden>
+      <div class="avatar-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="avatar-modal-title">
+        <button type="button" id="close-avatar-modal" class="avatar-modal-close" aria-label="Close">×</button>
+        <h2 id="avatar-modal-title">{{ 'الصورة الشخصية' if lang == 'ar' else 'Profile picture' }}</h2>
+        <div class="avatar-modal-image-wrap">
+          {% if user.avatar_filename %}<img id="avatar-modal-image" src="{{ url_for('profile_avatar', uid=user.id) }}" alt="Current profile picture">
+          {% else %}<div id="avatar-modal-fallback" class="avatar-modal-fallback">{{ user.full_name[:1] }}</div><img id="avatar-modal-image" alt="New picture preview" hidden>{% endif %}
+        </div>
+        <p id="avatar-preview-message" class="profile-hint" aria-live="polite">{{ 'اضغط اختيار صورة جديدة للمعاينة قبل الحفظ' if lang == 'ar' else 'Choose a new picture to preview before saving' }}</p>
+        <form id="avatar-upload-form" method="post" enctype="multipart/form-data" action="{{ url_for('profile') }}">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <label class="avatar-file-label" for="avatar">{{ 'اختيار صورة جديدة' if lang == 'ar' else 'Choose new picture' }}</label>
+          <input id="avatar" type="file" name="avatar" accept="image/jpeg,image/png,image/webp" required>
+          <p class="profile-hint">JPG, PNG, WebP · max 3 MB</p>
+          <button class="btn primary profile-action-btn" type="submit">{{ 'حفظ الصورة' if lang == 'ar' else 'Save picture' }}</button>
+        </form>
+        {% if user.avatar_filename %}<form method="post" action="{{ url_for('profile_remove') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn profile-action-btn profile-remove-btn" type="submit">{{ 'حذف الصورة الحالية' if lang == 'ar' else 'Remove current picture' }}</button></form>{% endif %}
+      </div>
+    </div>
+    <div class="profile-section"><h2>{{ 'تغيير اسم المستخدم' if lang == 'ar' else 'Change username' }}</h2>
+      <form method="post" action="{{ url_for('profile_username') }}">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <label for="username">{{ 'اسم المستخدم الجديد' if lang == 'ar' else 'New username' }}</label>
+        <input id="username" name="username" type="text" value="{{ user.username }}" minlength="3" maxlength="32" pattern="[A-Za-z0-9._-]{3,32}" autocomplete="username" required>
+        <button class="btn primary profile-action-btn" id="open-username-confirm" type="button">{{ 'تحديث اسم المستخدم' if lang == 'ar' else 'Update username' }}</button>
+        <div id="username-confirm" class="profile-confirm-overlay" hidden>
+          <div class="profile-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="username-confirm-title">
+            <h3 id="username-confirm-title">{{ 'تأكيد تغيير اسم المستخدم' if lang == 'ar' else 'Confirm username change' }}</h3>
+            <p>{{ 'أدخل كلمة المرور الحالية حتى تحفظ الاسم الجديد' if lang == 'ar' else 'Enter your current password to save the new username.' }}</p>
+            <label for="username_password">{{ 'كلمة المرور الحالية' if lang == 'ar' else 'Current password' }}</label>
+            <input id="username_password" name="current_password" type="password" autocomplete="current-password" disabled>
+            <div class="profile-confirm-actions">
+              <button class="btn" type="button" id="cancel-username-confirm">{{ 'إلغاء' if lang == 'ar' else 'Cancel' }}</button>
+              <button class="btn primary" type="submit">{{ 'تأكيد التغيير' if lang == 'ar' else 'Confirm update' }}</button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="profile-section"><h2>{{ t('change_pw') }}</h2>
+      <form method="post" action="{{ url_for('password') }}">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <label for="old_password">{{ t('old_pw') }}</label>
+        <input id="old_password" name="old" type="password" autocomplete="current-password" required>
+        <label for="new_password">{{ t('new_pw') }}</label>
+        <input id="new_password" name="new" type="password" autocomplete="new-password" minlength="8" required>
+        <button class="btn primary profile-action-btn" type="submit">{{ t('change_pw') }}</button>
+      </form>
+    </div>
+  </div>
+</section>
+<script src="{{ url_for('static', filename='profile.js', v='avatar-modal-v5') }}" defer></script>
+{% endblock %}

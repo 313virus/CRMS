@@ -5,17 +5,21 @@ import os
 import secrets
 import sqlite3
 import time
+from PIL import Image, ImageOps, UnidentifiedImageError
+from io import BytesIO
 from datetime import date
 from functools import wraps
 
 from flask import (Flask, Response, abort, flash, g, redirect, render_template,
-                   request, session, url_for)
+                   request, session, url_for, send_from_directory)
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from i18n import T
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DB = os.environ.get('RISK_DB', os.path.join(BASE, 'risk.db'))
+AVATAR_DIR = os.path.join(BASE, 'profile_pictures')
+ASSET_ID = 1  # The sole asset in this educational case study
 ROLES = {'viewer': 1, 'analyst': 2, 'admin': 3}
 STATUS = ['open', 'in_progress', 'treated', 'closed']
 TREAT = ['mitigate', 'accept', 'transfer', 'avoid']
@@ -210,9 +214,105 @@ def password():
             audit('password_change', 'user', g.user['id'])
             db.commit()
             flash(t('saved'))
-            return redirect(url_for('dashboard'))
-    return render_template('password.html')
+            return redirect(url_for('profile'))
+    return redirect(url_for('profile'))
 
+
+
+# ---------- personal profile pictures ----------
+@app.route('/profile', methods=['GET', 'POST'])
+@need()
+def profile():
+    if request.method == 'POST':
+        upload = request.files.get('avatar')
+        if not upload or not upload.filename:
+            flash('Select a picture / اختر صورة', 'err')
+            return redirect(url_for('profile'))
+        raw = upload.stream.read(3 * 1024 * 1024 + 1)
+        if len(raw) > 3 * 1024 * 1024:
+            flash('Max image size is 3 MB / الحد 3 ميغابايت', 'err')
+            return redirect(url_for('profile'))
+        try:
+            with Image.open(BytesIO(raw)) as verify_image:
+                verify_image.verify()
+            with Image.open(BytesIO(raw)) as original:
+                if original.format not in ('JPEG', 'PNG', 'WEBP') or original.width * original.height > 16000000:
+                    raise ValueError('Invalid image')
+                picture = ImageOps.exif_transpose(original)
+                picture.thumbnail((400, 400))
+                if picture.mode == 'RGBA':
+                    canvas = Image.new('RGB', picture.size, '#ffffff')
+                    canvas.paste(picture, mask=picture.getchannel('A'))
+                    picture = canvas
+                else:
+                    picture = picture.convert('RGB')
+                os.makedirs(AVATAR_DIR, exist_ok=True)
+                filename = secrets.token_hex(20) + '.jpg'
+                dest = os.path.join(AVATAR_DIR, filename)
+                picture.save(dest, 'JPEG', quality=85)
+        except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
+            flash('Invalid image / الصورة غير صالحة', 'err')
+            return redirect(url_for('profile'))
+        db = get_db()
+        old = g.user['avatar_filename']
+        try:
+            db.execute('UPDATE users SET avatar_filename=? WHERE id=?', (filename, g.user['id']))
+            audit('avatar_update', 'user', g.user['id'])
+            db.commit()
+        except Exception:
+            os.remove(dest)
+            raise
+        if old:
+            old_path = os.path.join(AVATAR_DIR, old)
+            if os.path.isfile(old_path):
+                os.remove(old_path)
+        flash(t('saved'))
+        return redirect(url_for('profile'))
+    return render_template('profile.html')
+
+@app.route('/profile/avatar/<int:uid>')
+@need()
+def profile_avatar(uid):
+    row = get_db().execute('SELECT avatar_filename FROM users WHERE id=?', (uid,)).fetchone()
+    if not row or not row['avatar_filename']:
+        abort(404)
+    return send_from_directory(AVATAR_DIR, row['avatar_filename'], mimetype='image/jpeg')
+
+@app.route('/profile/remove', methods=['POST'])
+@need()
+def profile_remove():
+    old = g.user['avatar_filename']
+    db = get_db()
+    db.execute('UPDATE users SET avatar_filename=NULL WHERE id=?', (g.user['id'],))
+    audit('avatar_remove', 'user', g.user['id'])
+    db.commit()
+    if old:
+        old_path = os.path.join(AVATAR_DIR, old)
+        if os.path.isfile(old_path):
+            os.remove(old_path)
+    flash(t('saved'))
+    return redirect(url_for('profile'))
+
+@app.route('/profile/username', methods=['POST'])
+@need()
+def profile_username():
+    username = request.form.get('username', '').strip()
+    current_password = request.form.get('current_password', '')
+    if not (3 <= len(username) <= 32) or not all(c.isascii() and (c.isalnum() or c in '._-') for c in username):
+        flash('Username must be 3-32 characters (letters, numbers, dot, dash, underscore) / اسم المستخدم غير صالح', 'err')
+    elif not check_password_hash(g.user['password_hash'], current_password):
+        flash('Incorrect password / كلمة المرور غير صحيحة', 'err')
+    else:
+        db = get_db()
+        try:
+            db.execute('UPDATE users SET username=? WHERE id=?', (username, g.user['id']))
+            audit('username_change', 'user', g.user['id'])
+            db.commit()
+            flash(t('saved'))
+        except sqlite3.IntegrityError:
+            db.rollback()
+            flash('Username already exists / اسم المستخدم مستخدم مسبقاً', 'err')
+    return redirect(url_for('profile'))
 
 # ---------- dashboard / report ----------
 @app.route('/')
@@ -273,7 +373,7 @@ def risk_form(rid=None):
     if request.method == 'POST':
         f = request.form
         try:
-            d = dict(title=f['title'].strip(), asset_id=int(f['asset_id']), threat_id=int(f['threat_id']),
+            d = dict(title=f['title'].strip(), asset_id=ASSET_ID, threat_id=int(f['threat_id']),
                      vulnerability_id=int(f['vulnerability_id']), likelihood=int(f['likelihood']),
                      impact=int(f['impact']), res_likelihood=int(f['res_likelihood']), res_impact=int(f['res_impact']),
                      treatment=f['treatment'], action=f.get('action', '').strip(),
@@ -304,7 +404,7 @@ def risk_form(rid=None):
             row = dict(f)
     return render_template(
         'risk_form.html', r=row,
-        assets=[(a['id'], bi(a['name'])) for a in db.execute('SELECT * FROM assets ORDER BY name')],
+        assets=[(a['id'], bi(a['name'])) for a in db.execute('SELECT * FROM assets WHERE id=?', (ASSET_ID,))],
         threats=[(a['id'], bi(a['name'])) for a in db.execute('SELECT * FROM threats ORDER BY name')],
         vulns=[(a['id'], bi(a['name'])) for a in db.execute('SELECT * FROM vulnerabilities ORDER BY name')],
         owners=[(u['id'], u['full_name']) for u in db.execute('SELECT id, full_name FROM users ORDER BY full_name')],
@@ -369,20 +469,22 @@ def asset_form(aid=None):
 
 
 @app.route('/assets/new', methods=['GET', 'POST'])
-@need('analyst')
+@need('admin')
 def asset_new():
-    return asset_form()
+    abort(403)  # Case study is restricted to exactly one asset
 
 
 @app.route('/assets/<int:aid>/edit', methods=['GET', 'POST'])
 @need('analyst')
 def asset_edit(aid):
+    if aid != ASSET_ID: abort(404)
     return asset_form(aid)
 
 
 @app.route('/assets/<int:aid>/delete', methods=['POST'])
 @need('analyst')
 def asset_delete(aid):
+    abort(403)  # The single asset must remain in the case study
     db = get_db()
     try:
         db.execute('DELETE FROM assets WHERE id=?', (aid,))
@@ -476,29 +578,35 @@ def seed(db):
                        ('viewer', 'Viewer', 'viewer', 'Viewer@12345')]:
         db.execute('INSERT INTO users(username,full_name,role,password_hash) VALUES(?,?,?,?)',
                    (u, n, r, generate_password_hash(p)))
-    threats = ['Ransomware | برمجيات فدية', 'Unauthorized access | وصول غير مصرح به', 'Phishing | تصيّد احتيالي',
-               'Data leakage | تسريب بيانات', 'Malware | برمجيات خبيثة', 'Denial of service | حجب الخدمة',
-               'Insider threat | تهديد داخلي', 'Password attack | هجوم على كلمة المرور']
-    vulns = ['No isolated backups | غياب نسخ احتياطي معزول', 'Excessive permissions | صلاحيات واسعة',
-             'Unpatched system | نظام غير محدّث', 'Weak password policy | سياسة كلمات مرور ضعيفة',
-             'Low security awareness | قلة الوعي الأمني', 'Unencrypted data | بيانات غير مشفرة',
-             'No network segmentation | غياب عزل الشبكة', 'Missing monitoring | غياب المراقبة']
+    threats = [
+        'SQL injection attack | هجوم حقن SQL',
+        'Unauthorized access | وصول غير مصرح به',
+        'Data exfiltration | تسريب البيانات',
+        'Ransomware | برمجيات الفدية',
+        'Data loss | فقدان البيانات',
+        'Credential attack | هجوم على بيانات الدخول']
+    vulns = [
+        'Unsafe SQL query construction | استعلامات SQL غير آمنة',
+        'Excessive privileges | صلاحيات زائدة',
+        'Unencrypted database exports | تصدير البيانات دون تشفير',
+        'Unpatched server | خادم غير محدث',
+        'Untested backups | نسخ احتياطية غير مختبرة',
+        'Weak password policy | سياسة كلمات مرور ضعيفة']
     db.executemany('INSERT INTO threats(name) VALUES(?)', [(x,) for x in threats])
     db.executemany('INSERT INTO vulnerabilities(name) VALUES(?)', [(x,) for x in vulns])
-    assets = [('Main file server | خادم الملفات الرئيسي', 'server', 'IT', 4),
-              ('Student database | قاعدة بيانات الطلبة', 'database', 'Academic Affairs', 5),
-              ('Wi-Fi network | شبكة الواي فاي', 'network', 'Networks', 3),
-              ('Staff laptops | حواسيب الموظفين', 'device', 'HR', 3)]
-    db.executemany('INSERT INTO assets(name,type,owner,criticality) VALUES(?,?,?,?)', assets)
-    risks = [('Ransomware on file server | فدية على خادم الملفات', 1, 1, 1, 4, 5, 'mitigate', 'Offline backups + EDR | نسخ احتياطي معزول وحماية', 'in_progress', 2, 4),
-             ('Student data leak | تسريب بيانات الطلبة', 2, 4, 2, 3, 5, 'mitigate', 'Least privilege + review | أقل صلاحية ومراجعة دورية', 'open', 2, 3),
-             ('Wi-Fi compromise | اختراق الواي فاي', 3, 8, 4, 4, 3, 'mitigate', 'WPA3 + strong passphrase | WPA3 وكلمة مرور قوية', 'treated', 1, 3),
-             ('Phishing against staff | تصيّد ضد الموظفين', 4, 3, 5, 5, 3, 'mitigate', 'Awareness + mail filtering | توعية وفلترة بريد', 'open', 3, 2),
-             ('Outage from old vulnerability | انقطاع بسبب ثغرة قديمة', 1, 6, 3, 2, 4, 'accept', 'Monitor | مراقبة', 'closed', 2, 3)]
-    for ti, a, th, v, l, i, tr, ac, st, rl, ri in risks:
+    db.execute('INSERT INTO assets(name,type,owner,criticality) VALUES(?,?,?,?)',
+               ('Student Records Database Server | خادم قاعدة بيانات سجلات الطلبة', 'server', 'University IT Department', 5))
+    risks = [
+      ('SQL injection in student records | حقن SQL في سجلات الطلبة',1,1,4,5,'mitigate','Use parameterized queries and input validation | استخدام استعلامات آمنة والتحقق من المدخلات','open',2,4),
+      ('Unauthorized grade modification | تعديل الدرجات دون صلاحية',2,2,4,5,'mitigate','Enforce least privilege and audit changes | تقييد الصلاحيات وتدقيق التعديلات','in_progress',2,4),
+      ('Student data leak | تسريب بيانات الطلبة',3,3,3,5,'mitigate','Encrypt exports and restrict access | تشفير النسخ وتقييد الوصول','open',2,3),
+      ('Ransomware on database server | فدية على خادم قاعدة البيانات',4,4,3,5,'mitigate','Patch server and isolate backups | تحديث الخادم وعزل النسخ الاحتياطية','open',2,4),
+      ('Backup restore failure | فشل استرجاع النسخ الاحتياطية',5,5,3,4,'mitigate','Schedule backup restore tests | اختبار استعادة النسخ الاحتياطية دورياً','in_progress',1,4),
+      ('Compromised admin password | اختراق كلمة مرور المسؤول',6,6,4,4,'mitigate','Enable MFA and strong passwords | تفعيل التحقق المتعدد وكلمات مرور قوية','open',2,3)]
+    for ti, th, v, l, i, tr, ac, st, rl, ri in risks:
         db.execute('''INSERT INTO risks(title,asset_id,threat_id,vulnerability_id,likelihood,impact,treatment,action,
-                      owner_id,due_date,status,res_likelihood,res_impact,created_by) VALUES(?,?,?,?,?,?,?,?,2,'2026-12-31',?,?,?,1)''',
-                   (ti, a, th, v, l, i, tr, ac, st, rl, ri))
+                      owner_id,due_date,status,res_likelihood,res_impact,created_by) VALUES(?,1,?,?,?,?,?,?,2,'2027-01-31',?,?,?,1)''',
+                   (ti, th, v, l, i, tr, ac, st, rl, ri))
 
 
 def init_db():
@@ -506,6 +614,8 @@ def init_db():
     db.execute('PRAGMA foreign_keys=ON')
     with open(os.path.join(BASE, 'schema.sql'), encoding='utf-8') as f:
         db.executescript(f.read())
+    if 'avatar_filename' not in {r[1] for r in db.execute('PRAGMA table_info(users)')}:
+        db.execute('ALTER TABLE users ADD COLUMN avatar_filename TEXT')
     if db.execute('SELECT COUNT(*) FROM users').fetchone()[0] == 0:
         seed(db)
     db.commit()

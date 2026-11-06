@@ -1,1 +1,8 @@
-(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}})();
+(function () {
+  var theme = 'dark';
+  try {
+    var saved = localStorage.getItem('theme');
+    if (saved === 'light' || saved === 'dark') theme = saved;
+  } catch (error) {}
+  document.documentElement.setAttribute('data-theme', theme);
+})();

@@ -20,3 +20,11 @@ document.addEventListener('click', function (e) {
   h.setAttribute('data-theme', next);
   try { localStorage.setItem('theme', next); } catch (err) {}
 });
+
+// Responsive workspace navigation.
+document.addEventListener('click',function(e){
+ var toggle=e.target.closest('[data-menu-toggle]');
+ if(toggle){document.getElementById('workspace')?.classList.toggle('menu-open');return;}
+ var workspace=document.getElementById('workspace');
+ if(workspace?.classList.contains('menu-open')&&!e.target.closest('.sidebar'))workspace.classList.remove('menu-open');
+});

@@ -1,0 +1,8 @@
+CRMS UI update
+- Dark charcoal dashboard with electric blue highlights, based on supplied screenshot.
+- Separate, working light and dark color tokens.
+- Theme setting persists in browser localStorage.
+- Simplified header from long Student Records Server label to CRMS.
+- Login design retained from previous blue split-screen build.
+- No backend routes or database schema modified.
+Run: pip install -r requirements.txt && python app.py

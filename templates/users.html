@@ -7,6 +7,6 @@
   <label>{{ t('role') }}<select name="role">{{ opts(roles, 'analyst') }}</select></label>
   <div class="w"><button class="p">{{ t('add') }}</button></div></form>
 <div class="card scroll"><table><tr><th>{{ t('username') }}</th><th>{{ t('full_name') }}</th><th>{{ t('role') }}</th><th>{{ t('created') }}</th><th></th></tr>
-{% for u in rows %}<tr><td><span class="av">{{ u.full_name[:1] }}</span><b>{{ u.username }}</b></td><td>{{ u.full_name }}</td><td><span class="chip r-{{ u.role }}">{{ t('ro_' ~ u.role) }}</span></td><td>{{ u.created_at }}</td>
+{% for u in rows %}<tr><td><span class="av user-list-avatar">{% if u.avatar_filename %}<img src="{{ url_for('profile_avatar', uid=u.id) }}" alt="{{ u.full_name }}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'"><span class="user-avatar-initial" style="display:none">{{ u.full_name[:1] }}</span>{% else %}<span class="user-avatar-initial">{{ u.full_name[:1] }}</span>{% endif %}</span><b>{{ u.username }}</b></td><td>{{ u.full_name }}</td><td><span class="chip r-{{ u.role }}">{{ t('ro_' ~ u.role) }}</span></td><td>{{ u.created_at }}</td>
 <td>{% if u.id != user.id %}<form class="inline" method="post" action="{{ url_for('user_delete', uid=u.id) }}" data-confirm="{{ t('confirm_del') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="d">{{ t('delete') }}</button></form>{% endif %}</td></tr>{% endfor %}
 </table></div>{% endblock %}

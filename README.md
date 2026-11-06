@@ -1,64 +1,36 @@
-# Cybersecurity Risk Management System
-# نظام إدارة المخاطر السيبرانية
+# Cybersecurity Risk Management System: One Asset Case Study
 
-Flask + SQLite web application (Arabic / English, RTL / LTR).
+Organization: Basra Educational Institution (fictional).
+Single asset: Student Records Database Server.
+All incidents and vulnerabilities are fictional demonstration data.
 
-## Run
-```
+## Run (Windows)
+```powershell
+py -m venv .venv
+.venv\Scripts\activate
 pip install -r requirements.txt
-python app.py          # http://127.0.0.1:5000
-python test_app.py     # automated tests (uses a temporary database)
+python app.py
 ```
-The database (`risk.db`) and a random `secret.key` are created automatically on first run with sample data.
+Open http://127.0.0.1:5000
 
-| Username | Password | Role |
-|---|---|---|
-| admin | Admin@123 | Admin: everything + users + audit log |
-| analyst | Analyst@123 | Analyst: create/edit/delete risks, assets, catalog |
-| viewer | Viewer@123 | Viewer: read-only |
+## Accounts (local demo only)
+- admin / Admin@12345
+- analyst / Analyst@12345
+- viewer / Viewer@12345
 
-Change these passwords after first login (top bar -> Change password).
+Change passwords after first login. The SQLite database and session secret are generated on first run.
 
-## Project objectives -> features
-1. Electronic risk register: Risk Register page (search, filter, CSV export)
-2. Assets linked to risks: Assets page (type, owner, criticality)
-3. Threats and vulnerabilities: catalog tables, selected per risk
-4. Likelihood (1-5) and 5. Impact (1-5)
-6. Risk level = likelihood x impact: 1-4 Low, 5-9 Medium, 10-16 High, 17-25 Critical
-7. Treatment: mitigate / accept / transfer / avoid, action, owner, due date, residual risk
-8. Status tracking: open / in progress / treated / closed, dashboard, 5x5 matrix, printable report
+## Backend
+Flask server-side routes and SQLite schema are in `app.py` and `schema.sql`. One fixed asset (ID 1), six seeded risks, six threats and six vulnerabilities. Analyst users create and update risks, assign likelihood/impact (1-5), choose treatment and track residual risk. Admin manages users. Audit logs record changes. Reports and CSV export are available.
 
-## Database (SQLite, 3NF, foreign keys enforced)
-```mermaid
-erDiagram
-  USERS ||--o{ RISKS : "owns / creates"
-  ASSETS ||--o{ RISKS : "has"
-  THREATS ||--o{ RISKS : "causes"
-  VULNERABILITIES ||--o{ RISKS : "exploited in"
-  USERS { int id PK; text username UK; text password_hash; text full_name; text role }
-  ASSETS { int id PK; text name; text type; text owner; int criticality }
-  THREATS { int id PK; text name UK }
-  VULNERABILITIES { int id PK; text name UK }
-  RISKS { int id PK; text title; int asset_id FK; int threat_id FK; int vulnerability_id FK; int likelihood; int impact; text treatment; text action; int owner_id FK; text due_date; text status; int res_likelihood; int res_impact }
-  AUDIT_LOG { int id PK; text username; text action; text entity; int entity_id; text details; text created_at }
-```
-Full DDL with CHECK constraints: `schema.sql`.
+Risk score = likelihood x impact. Existing code thresholds: Low 1-4, Medium 5-9, High 10-16, Critical 17-25. The residual risk fields are estimates, not measured security improvements.
 
-## Security controls (good material for the report)
-- Passwords hashed (PBKDF2 via Werkzeug), never stored in plain text
-- Role-based access control (admin / analyst / viewer) enforced on the server
-- CSRF token on every POST form
-- Parameterized SQL queries only (SQL injection prevention); Jinja auto-escaping (XSS prevention)
-- Login throttling: 5 failed attempts -> 5 minute lock per IP
-- Session cookie HttpOnly + SameSite, 1 hour lifetime, session reset on login
-- Security headers: CSP, X-Frame-Options, nosniff, no-store
-- CSV export protected against formula injection
-- Audit log of logins and every create / update / delete
-- Input validation on server side + database CHECK constraints
+## Discussion with supervisor
+- Why this asset: contains sensitive student identity and grade records.
+- Threat -> vulnerability -> risk -> likelihood/impact -> treatment -> residual risk -> status.
+- One institution, one asset, six realistic example risks.
+- This is a risk register, not a real-time intrusion detection system.
+- Application login permissions are distinct from the student database server's security controls.
 
-## Structure
-```
-app.py  i18n.py  schema.sql  test_app.py  requirements.txt
-templates/  (Jinja2 pages)    static/  (style.css, app.js, report.js)
-```
-For production: run behind HTTPS with gunicorn, set SESSION_COOKIE_SECURE=True, use a shared store for login throttling.
+## Test
+`python test_one_asset.py`
