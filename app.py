@@ -638,7 +638,8 @@ def seed(db):
 
 def init_db():
     if DATABASE_URL:
-        db = PostgresConnection(DATABASE_URL)
+        # Database initialization must not create a pool before Gunicorn forks.
+        db = PostgresConnection(DATABASE_URL, pooled=False)
         try:
             with open(os.path.join(BASE, 'schema_postgres.sql'), encoding='utf-8') as f:
                 db.executescript(f.read())

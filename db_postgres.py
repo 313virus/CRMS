@@ -14,11 +14,21 @@ logging.getLogger("psycopg.pool").setLevel(logging.INFO)
 
 _pool = None
 _pool_url = None
+_pool_pid = None
 _pool_lock = Lock()
 
 
 def get_pool(url):
-    global _pool, _pool_url
+    """Create a pool only in the process that will use it (Gunicorn-safe)."""
+    global _pool, _pool_url, _pool_pid, _pool_lock
+    pid = os.getpid()
+    if _pool_pid != pid:
+        # A pool inherited across fork is unsafe. Do not close its inherited
+        # connections: the parent process may still own their sockets.
+        _pool = None
+        _pool_url = None
+        _pool_pid = pid
+        _pool_lock = Lock()
     if _pool is None:
         with _pool_lock:
             if _pool is None:
@@ -31,18 +41,13 @@ def get_pool(url):
                     max_idle=60,
                     max_lifetime=600,
                     reconnect_timeout=30,
-                    kwargs={
-                        "row_factory": dict_row,
-                        "connect_timeout": 15,
-                    },
+                    kwargs={"row_factory": dict_row, "connect_timeout": 15},
                     open=True,
                     name="crms-postgres",
                 )
                 _pool_url = url
     elif url != _pool_url:
-        raise ValueError(
-            "PostgreSQL connection URL changed after pool initialization"
-        )
+        raise ValueError("PostgreSQL connection URL changed after pool initialization")
     return _pool
 
 
@@ -65,15 +70,18 @@ class Result:
         return iter(self.fetchall())
 
 class PostgresConnection:
-    def __init__(self, url):
-        self._pool = get_pool(url)
+    def __init__(self, url, pooled=True):
+        self._pool = get_pool(url) if pooled else None
+        self.conn = None
         try:
-            self.conn = self._pool.getconn()
+            if self._pool is not None:
+                self.conn = self._pool.getconn()
+            else:
+                self.conn = psycopg.connect(url, row_factory=dict_row, connect_timeout=15)
         except PoolTimeout:
-            # Print pool counters without exposing the database URL or password.
             logging.getLogger(__name__).exception(
                 "PostgreSQL pool timed out. Pool stats: %s",
-                self._pool.get_stats(),
+                self._pool.get_stats() if self._pool is not None else {},
             )
             raise
     def execute(self, query, params=None):
@@ -114,4 +122,7 @@ class PostgresConnection:
             if not conn.closed and conn.info.transaction_status != TransactionStatus.IDLE:
                 conn.rollback()
         finally:
-            self._pool.putconn(conn)
+            if self._pool is None:
+                conn.close()
+            else:
+                self._pool.putconn(conn)
