@@ -3,7 +3,9 @@
 Organization: Basra Educational Institution (fictional).
 Single asset: Student Records Database Server.
 All incidents and vulnerabilities are fictional demonstration data.
-
+```powershell
+git add -u; git add app.py requirements.txt schema.sql static/ templates/; git commit -m "Update CRMS"; if ($LASTEXITCODE -eq 0) { git push origin main }
+```
 ## Run (Windows)
 ```powershell
 py -m venv .venv
