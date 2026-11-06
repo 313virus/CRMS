@@ -7,6 +7,10 @@ from psycopg import IntegrityError as PgIntegrityError
 from psycopg.rows import dict_row
 from psycopg.pq import TransactionStatus
 from threading import Lock
+import logging
+from psycopg_pool import PoolTimeout
+
+logging.getLogger("psycopg.pool").setLevel(logging.INFO)
 
 _pool = None
 _pool_url = None
@@ -32,6 +36,7 @@ def get_pool(url):
                         "connect_timeout": 15,
                     },
                     open=True,
+                    name="crms-postgres",
                 )
                 _pool_url = url
     elif url != _pool_url:
@@ -62,7 +67,15 @@ class Result:
 class PostgresConnection:
     def __init__(self, url):
         self._pool = get_pool(url)
-        self.conn = self._pool.getconn()
+        try:
+            self.conn = self._pool.getconn()
+        except PoolTimeout:
+            # Print pool counters without exposing the database URL or password.
+            logging.getLogger(__name__).exception(
+                "PostgreSQL pool timed out. Pool stats: %s",
+                self._pool.get_stats(),
+            )
+            raise
     def execute(self, query, params=None):
         if isinstance(params, dict):
             query = re.sub(r':([A-Za-z_][A-Za-z0-9_]*)', r'%(' + r'\1' + r')s', query)
