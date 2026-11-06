@@ -40,8 +40,11 @@ class PostgresConnection:
             row = cursor.fetchone()
             lastrowid = row['id']
         return Result(cursor, lastrowid)
+
     def executemany(self, query, params):
-        return self.conn.executemany(query.replace('?', '%s'), params)
+        with self.conn.cursor() as cursor:
+            cursor.executemany(query.replace('?', '%s'), params)
+            return cursor
     def executescript(self, sql):
         # This file contains only simple CREATE TABLE / CREATE INDEX statements.
         for statement in sql.split(';'):
