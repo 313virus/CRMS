@@ -12,6 +12,7 @@ _pool = None
 _pool_url = None
 _pool_lock = Lock()
 
+
 def get_pool(url):
     global _pool, _pool_url
     if _pool is None:
@@ -22,13 +23,23 @@ def get_pool(url):
                     min_size=0,
                     max_size=5,
                     timeout=20,
-                    kwargs={"row_factory": dict_row, "connect_timeout": 15},
+                    check=ConnectionPool.check_connection,
+                    max_idle=60,
+                    max_lifetime=600,
+                    reconnect_timeout=30,
+                    kwargs={
+                        "row_factory": dict_row,
+                        "connect_timeout": 15,
+                    },
                     open=True,
                 )
                 _pool_url = url
     elif url != _pool_url:
-        raise ValueError("PostgreSQL connection URL changed after pool initialization")
+        raise ValueError(
+            "PostgreSQL connection URL changed after pool initialization"
+        )
     return _pool
+
 
 class DbRow(dict):
     def __getitem__(self, key):
